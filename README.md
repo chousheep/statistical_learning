@@ -8,9 +8,6 @@ This repository contains coursework and projects for a Statistical Learning cour
 - [Repository Structure](#repository-structure)
 - [Homework Assignments](#homework-assignments)
 - [Final Project](#final-project)
-- [Setup and Requirements](#setup-and-requirements)
-- [Usage](#usage)
-- [Technologies Used](#technologies-used)
 
 ## Overview
 
