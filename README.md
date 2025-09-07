@@ -1,6 +1,6 @@
-# Statistical Learning Course Repository
+# Statistical Learning 
 
-This repository contains coursework and projects for a Statistical Learning course, including homework assignments and a comprehensive final project on customer prediction using machine learning techniques.
+This repository contains coursework and projects for a Statistical Learning course, including homework assignments and a final project on customer prediction.
 
 ## Table of Contents
 
