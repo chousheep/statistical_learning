@@ -1,0 +1,501 @@
+---
+title: "stat_learning_hw5"
+author: '110071010'
+date: "2024-12-02"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 4
+
+![](images/Q4.jpg){width="520"}
+
+## (a)
+
+Sketch the tree corresponding to the partition of the predictor space illustrated in the left-hand panel of Figure 8.14. The numbers inside the boxes indicate the mean of Y within each region.
+
+![](IMG_1018.PNG){width="536"}
+
+## (b)
+
+Create a diagram similar to the left-hand panel of Figure 8.14, using the tree illustrated in the right-hand panel of the same figure. You should divide up the predictor space into the correct regions, and indicate the mean for each region.
+
+![](IMG_1019.PNG){width="518"}
+
+# Question 8
+
+In the lab, a classification tree was applied to the `Carseats` data set after converting `Sales` into a qualitative response variable. Now we will seek to predict `Sales` using regression trees and related approaches, treating the response as a quantitative variable.
+
+```{r}
+library(tree)
+library(ISLR)
+```
+
+## (a)
+
+Split the data set into a training set and a test set.
+
+```{r}
+set.seed(999)
+train <- sample(1:nrow(Carseats), 200)
+Carseats.train <- Carseats[train, ]
+Carseats.test <- Carseats[-train, ]
+```
+
+## (b)
+
+Fit a regression tree to the training set. Plot the tree, and interpret the results. What test MSE do you obtain?
+
+```{r}
+# Fit a regression tree to the training set
+tree.carseats <- tree(Sales~., data = Carseats.train)
+summary(tree.carseats)
+```
+
+[**Comment**]{.underline}
+
+-   number of terminal nodes (leaves): 16
+
+-   residual mean deviance: 2.126 = 391.2 / 184
+
+```{r}
+# Plotting the tree
+plot(tree.carseats)
+text(tree.carseats, pretty = 0, cex = 0.5)
+```
+
+[**Interpretation**]{.underline}
+
+-   Each split represents a decision based on [**one**]{.underline} predictor, with important predictors appearing higher in the tree
+
+-   The leaves show the average Sales value for the observations in that region
+
+```{r}
+# Calculating test MSE
+pred <- predict(tree.carseats, newdata = Carseats.test)
+mse <- mean((Carseats.test$Sales - pred)^2)
+mse
+```
+
+## (c)
+
+Use cross-validation in order to determine the optimal level of tree complexity. Does pruning the tree improve the test MSE?
+
+```{r}
+set.seed(999)
+cv.carseats <- cv.tree(tree.carseats)
+plot(cv.carseats$size, cv.carseats$dev, type = "b")
+```
+
+```{r}
+optimal_size <- which.min(cv.carseats$dev)
+optimal_size
+```
+
+```{r}
+pruned.carseats <- prune.tree(tree.carseats, best = optimal_size) 
+plot(pruned.carseats)
+text(pruned.carseats, pretty = 0, cex = 0.9)
+```
+
+```{r}
+# Test MSE after pruning
+pred.pruned <- predict(pruned.carseats, newdata = Carseats.test)
+mse.pruned <- mean((Carseats.test$Sales - pred.pruned)^2)
+mse.pruned
+```
+
+[**Comment**]{.underline}
+
+Pruning the tree **does not** improve the test MSE in this case.
+
+## (d)
+
+Use the bagging approach in order to analyze this data. What test MSE do you obtain? Use the `importance()` function to determine which variables are most important.
+
+```{r}
+set.seed(999)
+library(randomForest)
+bagging.carseats <- randomForest(Sales ~ ., 
+                                 data = Carseats.train, 
+                                 mtry = ncol(Carseats) - 1,
+                                 importance = TRUE)
+
+pred.bagging <- predict(bagging.carseats, newdata = Carseats.test)
+mse.bagging <- mean((Carseats.test$Sales - pred.bagging)^2)
+mse.bagging
+```
+
+```{r}
+importance(bagging.carseats)
+```
+
+[**Comment**]{.underline}
+
+**ShelveLoc (58.75 %IncMSE)** and **Price (53.96 %IncMSE)** seem to be two of the most important predictors.
+
+## (e)
+
+Use random forests to analyze this data. What test MSE do you obtain? Use the `importance()` function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
+
+```{r}
+set.seed(999)
+rf.carseats <- randomForest(Sales ~ ., 
+                            data = Carseats.train, 
+                            mtry = sqrt(ncol(Carseats) - 1),
+                            importance = TRUE)
+pred.rf <- predict(rf.carseats, newdata = Carseats.test)
+mse.rf <- mean((Carseats.test$Sales - pred.rf)^2)
+mse.rf
+```
+
+```{r}
+importance(rf.carseats)
+```
+
+[**Comment**]{.underline}
+
+**ShelveLoc (39.68 %IncMSE)** and **Price (37.42 %IncMSE)** appear to be two of the most important predictors. Next, we test how varying m, the number of variables considered at each split, affects the test MSE to find the optimal setting.
+
+```{r}
+# Loop over m values
+m_values <- 1:(ncol(Carseats.train) - 1)
+mse_values <- numeric(length(m_values)) 
+
+for (m in m_values) {
+  rf_model <- randomForest(Sales ~ ., data = Carseats.train, 
+                           mtry = m, importance = FALSE)
+  pred <- predict(rf_model, newdata = Carseats.test)
+  mse_values[m] <- mean((Carseats.test$Sales - pred)^2)
+  cat("m =", m, ", Test MSE =", mse_values[m], "\n")
+}
+```
+
+```{r}
+# Find optimal m
+optimal_m <- m_values[which.min(mse_values)]
+cat("Optimal m =", optimal_m, "with test MSE =", min(mse_values))
+```
+
+```{r}
+# Plot test MSE against m
+plot(m_values, mse_values, type = "b", pch = 19,
+     xlab = "Number of Variables Considered (m)",
+     ylab = "Test MSE", main = "Effect of m on Test MSE")
+abline(v = optimal_m,col = "blue", lty = 2)
+```
+
+# Question 9
+
+This problem involves the `OJ` data set which is part of the **ISLR2** package.
+
+```{r}
+library(ISLR2)
+library(tree)
+head(OJ)
+```
+
+## (a)
+
+Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.
+
+```{r}
+train_indices <- sample(1:nrow(OJ), 800)
+OJ.train <- OJ[train_indices, ]
+OJ.test <- OJ[-train_indices, ]
+```
+
+## (b)
+
+Fit a tree to the training data, with `Purchase` as the response and the other variables as predictors. Use the `summary()` function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?
+
+```{r}
+set.seed(999)
+# Fit the classification tree
+tree.oj <- tree(Purchase ~ ., data = OJ.train)
+summary(tree.oj)
+```
+
+[**Comment**]{.underline}
+
+The classification tree for the `OJ` dataset uses five predictors (`LoyalCH`, `SalePriceMM`, `WeekofPurchase`, `ListPriceDiff`, and `DiscCH`) to classify `Purchase`. It consists of 9 terminal nodes, indicating moderate complexity. The training error rate of 15.62% (125/800) suggests a good fit to the training data.
+
+## (c)
+
+Type in the name of the tree object in order to get a detailed text output. Pick one of the terminal nodes, and interpret the information displayed.
+
+```{r}
+tree.oj
+```
+
+[**Interpretation**]{.underline}
+
+**Node 4** shows that when LoyalCH \< 0.264232, the predicted class is MM.
+
+## (d)
+
+Create a plot of the tree, and interpret the results.
+
+```{r}
+# Plot the tree
+plot(tree.oj)
+text(tree.oj, pretty = 0,cex = 0.5)
+```
+
+[**Interpretation**]{.underline}
+
+**Node 4 [LoyalCH \< 0.264232]** is a key region where customers almost exclusively purchase MM. To be more specific, LoyalCH dominates as a predictor, with further refinement from price-related variables like PriceDiff and SpecialCH.
+
+## (e)
+
+Predict the response on the test data, and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?
+
+```{r}
+# Predict on the test data
+pred.oj <- predict(tree.oj, OJ.test, type = "class")
+
+# Confusion matrix
+confusion <- table(OJ.test$Purchase, pred.oj)
+print(confusion)
+```
+
+```{r}
+# Test error rate
+test_error_rate <- 1 - sum(diag(confusion)) / sum(confusion)
+test_error_rate
+```
+
+## (f)
+
+Apply the `cv.tree()` function to the training set in order to determine the optimal tree size.
+
+```{r}
+set.seed(999)
+cv.oj <- cv.tree(tree.oj, FUN = prune.misclass)
+print(cv.oj)
+```
+
+## (g)
+
+Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.
+
+```{r}
+plot(cv.oj$size, cv.oj$dev, type = "b", pch = 19,
+     xlab = "Tree Size (Number of Terminal Nodes)", 
+     ylab = "Cross-Validated Error Rate",
+     main = "Tree Size vs. Cross-Validated Error Rate")
+```
+
+## (h)
+
+Which tree size corresponds to the lowest cross-validated classification error rate?
+
+[**Answer**]{.underline}
+
+According to (f), the trees with **8, 9 terminal nodes** have the lowest cv deviance of 153.
+
+## (i)
+
+Produce a pruned tree corresponding to the optimal tree size obtained using cross-validation. If cross-validation does not lead to selection of a pruned tree, then create a pruned tree with five terminal nodes.
+
+```{r}
+# I directly worked with 5 terminal nodes since the original 8 or 9 terminal nodes literally mean no selection of variables
+pruned.tree <- prune.misclass(tree.oj, best = 5)
+
+# Plot the pruned tree
+plot(pruned.tree)
+text(pruned.tree, pretty = 0)
+```
+
+## (j)
+
+Compare the training error rates between the pruned and unpruned trees. Which is higher?
+
+```{r}
+# Training error for the pruned tree
+summary(pruned.tree)$misclass
+
+# Training error for the unpruned tree
+summary(tree.oj)$misclass
+```
+
+[**Comment**]{.underline}
+
+The pruned tree has a slightly higher training error rate (136/800) compared to the unpruned tree (125/800). This is expected because pruning simplifies the tree, reducing its ability to perfectly fit the training data (less overfitting).
+
+## (k)
+
+Compare the test error rates between the pruned and unpruned trees. Which is higher?
+
+```{r}
+pred.pruned <- predict(pruned.tree, OJ.test, type = "class")
+confusion.pruned <- table(OJ.test$Purchase, pred.pruned)
+
+# Test error for the pruned tree
+test_error_pruned <- 1 - sum(diag(confusion.pruned)) / sum(confusion.pruned)
+
+# Test error for the unpruned tree(in fact this is done in (e))
+test_error_unpruned <- test_error_rate
+
+cat("Pruned Tree Test Error Rate:", test_error_pruned, "\n")
+cat("Unpruned Tree Test Error Rate:", test_error_unpruned, "\n")
+```
+
+[**Comment**]{.underline}
+
+The pruned tree has a lower test error rate (18.51%) compared to the unpruned tree (22.22%), showing that pruning improves performance on test data by reducing overfitting.
+
+# Question 10
+
+We now use boosting to predict `Salary` in the `Hitters` data set.
+
+```{r}
+library(ISLR2)
+data("Hitters", package = "ISLR2")
+```
+
+## (a)
+
+Remove the observations for whom the salary information is unknown, and then log-transform the salaries.
+
+```{r}
+Hitters <- na.omit(Hitters) # remove rows with missing Salary values
+Hitters$Salary <- log(Hitters$Salary) # log-transform Salary
+```
+
+## (b)
+
+Create a training set consisting of the first 200 observations, and a test set consisting of the remaining observations.
+
+```{r}
+train_indices <- 1:200
+Hitters.train <- Hitters[train_indices, ]
+Hitters.test <- Hitters[-train_indices, ]
+```
+
+## (c)
+
+Perform boosting on the training set with 1,000 trees for a range of values of the shrinkage parameter. Produce a plot with different shrinkage values on the x-axis and the corresponding training set MSE on the y-axis.
+
+```{r}
+set.seed(999)
+library(gbm)
+
+shrinkage_values <- c(0.001, 0.01, 0.1, 0.2, 0.3,0.4, 0.5)
+train_mse <- numeric(length(shrinkage_values))
+
+# Loop over shrinkage values
+for (i in seq_along(shrinkage_values)) {
+  boost_model <- gbm(Salary ~ ., data = Hitters.train, 
+                     distribution = "gaussian", 
+                     n.trees = 1000, 
+                     shrinkage = shrinkage_values[i])
+  pred.train <- predict(boost_model, Hitters.train, n.trees = 1000)
+  train_mse[i] <- mean((Hitters.train$Salary - pred.train)^2)
+}
+```
+
+```{r}
+# Plot Training MSE
+plot(shrinkage_values, train_mse, type = "b", pch = 19,
+     xlab = "Shrinkage Parameter", ylab = "Training MSE",
+     main = "Training MSE vs. Shrinkage")
+```
+
+## (d)
+
+Produce a plot with different shrinkage values on the x-axis and the corresponding test set MSE on the y-axis.
+
+```{r}
+# Storing test MSE 
+test_mse <- numeric(length(shrinkage_values))
+
+# Loop over shrinkage values
+for (i in seq_along(shrinkage_values)) {
+  boost_model <- gbm(Salary ~ ., data = Hitters.train, 
+                     distribution = "gaussian", 
+                     n.trees = 1000, 
+                     shrinkage = shrinkage_values[i])
+  pred.test <- predict(boost_model, Hitters.test, n.trees = 1000)
+  test_mse[i] <- mean((Hitters.test$Salary - pred.test)^2)
+}
+
+```
+
+```{r}
+# Plot Test MSE
+plot(shrinkage_values, test_mse, type = "b", pch = 19,
+     xlab = "Shrinkage Parameter", ylab = "Test MSE",
+     main = "Test MSE vs. Shrinkage")
+```
+
+## (e)
+
+Compare the test MSE of boosting to the test MSE that results from applying two of the regression approaches seen in Chapters 3 and 6.
+
+```{r}
+# Linear Regression (Chapter 3)
+lm_model <- lm(Salary ~ ., data = Hitters.train)
+pred.lm <- predict(lm_model, Hitters.test)
+mse.lm <- mean((Hitters.test$Salary - pred.lm)^2)
+```
+
+```{r}
+# Ridge Regression (Chapter 6)
+library(glmnet)
+x <- model.matrix(Salary ~ ., data = Hitters.train)[, -1]
+y <- Hitters.train$Salary
+x_test <- model.matrix(Salary ~ ., data = Hitters.test)[, -1]
+ridge_model <- glmnet(x, y, alpha = 0) 
+pred.ridge <- predict(ridge_model, s = 0.1, newx = x_test)
+mse.ridge <- mean((Hitters.test$Salary - pred.ridge)^2)
+```
+
+```{r}
+# Compare test MSEs
+cat("Boosting Test MSE:", min(test_mse), "\n")
+cat("Linear Regression Test MSE:", mse.lm, "\n")
+cat("Ridge Regression Test MSE:", mse.ridge, "\n")
+```
+
+## (f)
+
+Which variables appear to be the most important predictors in the boosted model?
+
+```{r}
+set.seed(999)
+# Fit the final boosting model with the best shrinkage value
+best_shrinkage <- shrinkage_values[which.min(test_mse)]
+boost_final <- gbm(Salary ~ ., data = Hitters.train, 
+                   distribution = "gaussian", 
+                   n.trees = 1000, 
+                   shrinkage = best_shrinkage)
+```
+
+```{r}
+# Variable importance
+summary(boost_final, plotit = FALSE)
+```
+
+[**Comment**]{.underline}
+
+CAtBat (Cumulative At-Bats) is the most important predictor, contributing **27.44%** of the overall influence.
+
+## (g)
+
+Now apply bagging to the training set. What is the test set MSE for this approach?
+
+```{r}
+set.seed(999)
+library(randomForest)
+bagging_model <- randomForest(Salary ~ ., data = Hitters.train, 
+                              mtry = ncol(Hitters.train) - 1, ntree = 500)
+pred.bagging <- predict(bagging_model, Hitters.test)
+mse.bagging <- mean((Hitters.test$Salary - pred.bagging)^2)
+mse.bagging
+```

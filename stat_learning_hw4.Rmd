@@ -1,0 +1,472 @@
+---
+title: "stat_learning_hw4"
+author: '110071010'
+date: "2024-11-13"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Problem 8
+
+In this exercise, we will generate simulated data, and will then use this data to perform **best subset selection.**
+
+## (a)
+
+Use the rnorm() function to generate a predictor $X$ of length $n = 100$, as well as a noise vector $\epsilon$ of length $n = 100$.
+
+```{r}
+n <- 100
+X <- rnorm(n); eps <- rnorm(n)
+```
+
+## (b)
+
+Generate a response vector $Y$ of length $n = 100$ according to the model
+
+$$ Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \epsilon, $$
+
+where $\beta_0$, $\beta_1$, $\beta_2$, and $\beta_3$ are constants of your choice.
+
+```{r}
+beta_0 <- 100; beta_1 <- 200; beta_2 <- 300; beta_3 <- 400
+Y <- beta_0 + beta_1 * X + beta_2 * X^2 + beta_3 * X^3 + eps
+```
+
+## (c)
+
+Use the `regsubsets()` function to perform best subset selection in order to choose the best model containing the predictors $X, X^2, \ldots, X^{10}$. What is the best model obtained according to $C_p$, BIC, and adjusted $R^2$? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will [**need to use the `data.frame()` function**]{.underline} to create a single data set containing both $X$ and $Y$.
+
+```{r}
+library(leaps)
+
+# Create predictors X, X^2, ..., X^10 and combine with response Y
+data <- data.frame(Y = Y, X = X)
+for (i in 2:10) {
+  data[[paste0("X", i)]] <- X^i
+}
+
+# Perform best subset selection
+best_subset <- regsubsets(Y ~ ., data = data, nvmax = 10)
+summary_best <- summary(best_subset)
+```
+
+```{r}
+# Plot C_p
+plot(summary_best$cp, xlab = "num of variables", ylab = "C_p", type = "b")
+optimal_cp <- which.min(summary_best$cp)
+points(optimal_cp, summary_best$cp[optimal_cp], 
+       col = "cornflowerblue",pch = 19,cex =2)
+
+```
+
+```{r}
+# Coefficients of the best model(C_p)
+best_cp_model <- coef(best_subset, which.min(summary_best$cp))
+best_cp_model
+```
+
+```{r}
+# Plot BIC
+plot(summary_best$bic, xlab = "num of variables", ylab = "BIC", type = "b")
+optimal_bic <- which.min(summary_best$bic)
+points(optimal_bic, summary_best$bic[optimal_bic], 
+       col = "cornflowerblue", pch = 19,cex=2)
+```
+
+```{r}
+# Coefficients of the best model(BIC)
+best_bic_model <- coef(best_subset, which.min(summary_best$bic))
+best_bic_model
+```
+
+```{r}
+# Plot adjusted R^2
+plot(summary_best$adjr2, xlab = "num of variables", ylab = "Adjusted R^2", 
+     type = "b")
+optimal_adjr2 <- which.max(summary_best$adjr2)
+points(optimal_adjr2, summary_best$adjr2[optimal_adjr2],
+       col = "cornflowerblue", pch = 19,cex=2)
+```
+
+```{r}
+# Coefficients of the best model(adjusted R^2)
+best_adjr2_model <- coef(best_subset, which.max(summary_best$adjr2))
+best_adjr2_model
+```
+
+## (d)
+
+Repeat (c), using forward stepwise selection and also using backward stepwise selection. How does your answer compare to the results in (c)?
+
+### Forward Stepwise Selection
+
+```{r}
+forward_stepwise <- regsubsets(Y ~ ., data = data, nvmax = 10, method = "forward")
+summary_forward <- summary(forward_stepwise)
+summary_forward 
+```
+
+```{r}
+par(mfrow = c(1, 2))
+
+plot(summary_forward$cp, xlab = "Number of Variables", ylab = "Cp", 
+     type = "b", main = "Forward Stepwise: Cp")
+optimal_forward_cp <- which.min(summary_forward$cp)
+points(optimal_forward_cp, summary_forward$cp[optimal_forward_cp], 
+       col = "red", pch = 19, cex = 2)
+
+plot(summary_forward$bic, xlab = "Number of Variables", ylab = "BIC", 
+     type = "b", main = "Forward Stepwise: BIC")
+optimal_forward_bic <- which.min(summary_forward$bic)
+points(optimal_forward_bic, summary_forward$bic[optimal_forward_bic], 
+       col = "red", pch = 19, cex = 2)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+plot(summary_forward$adjr2, xlab = "Number of Variables", ylab = "Adjusted R^2", 
+     type = "b", main = "Forward Stepwise: Adj R^2")
+optimal_forward_adjr2 <- which.max(summary_forward$adjr2)
+points(optimal_forward_adjr2, summary_forward$adjr2[optimal_forward_adjr2], 
+       col = "red", pch = 19, cex = 2)
+```
+
+### Backward Stepwise Selection
+
+```{r}
+backward_stepwise <- regsubsets(Y ~ ., data = data, nvmax = 10, method = "backward")
+summary_backward <- summary(backward_stepwise)
+summary_backward
+```
+
+```{r}
+par(mfrow = c(1, 2))
+
+plot(summary_backward$cp, xlab = "Number of Variables", ylab = "Cp", 
+     type = "b", main = "Backward Stepwise: Cp")
+optimal_backward_cp <- which.min(summary_backward$cp)
+points(optimal_backward_cp, summary_backward$cp[optimal_backward_cp], 
+       col = "blue", pch = 19, cex = 2)
+
+
+plot(summary_backward$bic, xlab = "Number of Variables", ylab = "BIC", 
+     type = "b", main = "Backward Stepwise: BIC")
+optimal_backward_bic <- which.min(summary_backward$bic)
+points(optimal_backward_bic, summary_backward$bic[optimal_backward_bic], 
+       col = "blue", pch = 19, cex = 2)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+plot(summary_backward$adjr2, xlab = "Number of Variables", ylab = "Adjusted R^2", 
+     type = "b", main = "Backward Stepwise: Adj R^2")
+optimal_backward_adjr2 <- which.max(summary_backward$adjr2)
+points(optimal_backward_adjr2, summary_backward$adjr2[optimal_backward_adjr2], 
+       col = "blue", pch = 19, cex = 2)
+```
+
+### Comparision with (c)
+
+```{r}
+# Compare C_p of the best models
+cp_best_subset <- min(summary_best$cp)
+cp_forward <- min(summary_forward$cp)
+cp_backward <- min(summary_backward$cp)
+
+print(c("Best Subset C_p" = cp_best_subset,
+        "Forward Stepwise C_p" = cp_forward,
+        "Backward Stepwise C_p" = cp_backward))
+```
+
+```{r}
+# Compare BIC of the best models
+bic_best_subset <- min(summary_best$bic)
+bic_forward <- min(summary_forward$bic)
+bic_backward <- min(summary_backward$bic)
+
+print(c("Best Subset BIC" = bic_best_subset,
+        "Forward Stepwise BIC" = bic_forward,
+        "Backward Stepwise BIC" = bic_backward))
+```
+
+```{r}
+# Compare AdjR^2 of the best models
+adjr2_best_subset <- max(summary_best$adjr2)
+adjr2_forward <- max(summary_forward$adjr2)
+adjr2_backward <- max(summary_backward$adjr2)
+
+print(c("Best Subset AdjR^2" = adjr2_best_subset,
+        "Forward Stepwise AdjR^2" = adjr2_forward,
+        "Backward Stepwise AdjR^2" = adjr2_backward))
+```
+
+## (e)
+
+Now fit a lasso model to the simulated data, again using $X, X^2, \ldots, X^{10}$ as predictors. Use cross-validation to select the optimal value of $\lambda$. Create plots of the cross-validation error as a function of $\lambda$. Report the resulting coefficient estimates, and discuss the results obtained.
+
+```{r}
+library(glmnet)
+
+# Lasso with cross validation
+X_matrix <- model.matrix(Y ~ . - 1, data = data) # design matrix
+cv_lasso <- cv.glmnet(X_matrix, Y, alpha = 1)
+
+# Plot "cross-validation error" against "lambda"
+plot(cv_lasso)
+```
+
+```{r}
+# Optimal lambda and coefficients
+best_lambda <- cv_lasso$lambda.min
+lasso_coefs <- coef(cv_lasso, s = best_lambda)
+lasso_coefs
+```
+
+[**Comment**]{.underline}
+
+The lasso model selected fewer predictors than best subset selection, which is expected due to its regularization effect. However, X, X2, X3, and X4 remained selected as key predictors.
+
+## (f)
+
+Now generate a response vector $Y$ according to the model
+
+$$
+   Y = \beta_0 + \beta_7 X^7 + \epsilon,
+   $$
+
+and perform best subset selection and the lasso. Discuss the results obtained.
+
+```{r}
+# Update dataset with the new response Y
+beta_7 <- 500
+Y_new <- beta_0 + beta_7 * X^7 + eps
+data$Y_new <- Y_new
+```
+
+```{r}
+# Best subset selection
+best_subset_new <- regsubsets(Y_new ~ ., data = data, nvmax = 10)
+summary_best_new <- summary(best_subset_new)
+best_bic_model <- coef(best_subset_new, which.min(summary_best_new$bic))
+best_bic_model
+```
+
+```{r}
+# Lasso for new response
+cv_lasso_new <- cv.glmnet(X_matrix, Y_new, alpha = 1)
+lasso_coefs_new <- coef(cv_lasso_new, s = cv_lasso_new$lambda.min)
+lasso_coefs_new
+```
+
+[**Comment**]{.underline}
+
+Lasso seems to have outperformed the best subset selection with BIC, clearly identifying the key predictor X\^7 by imposing some shrinkage.
+
+# Problem 10
+
+We have seen that as the number of features used in a model increases, the training error will necessarily decrease, but the test error may not. We will now explore this in a simulated data set.
+
+## (a)
+
+Generate a data set with $p = 20$ features, $n = 1,000$ observations, and an associated quantitative response vector generated according to the model
+
+$$
+   Y = X \beta + \epsilon,
+$$
+
+where $\beta$ has some elements that are exactly equal to zero.
+
+```{r}
+set.seed(9999)  
+n <- 1000 # num of observations
+p <- 20 # num of predictors
+
+X <- matrix(rnorm(n * p), n, p)
+beta <- c(100, 200, 300, rep(0, p - 3))
+eps <- rnorm(n)
+Y <- X %*% beta + eps
+```
+
+```{r}
+data <- data.frame(Y = Y, X = as.data.frame(X))
+head(data)
+```
+
+## (b)
+
+Split your data set into a training set containing 100 observations and a test set containing 900 observations.
+
+```{r}
+train_indices <- sample(1:n, 100)
+train_data <- data[train_indices, ]
+test_data <- data[-train_indices, ]
+```
+
+## (c)
+
+Perform best subset selection on the training set, and plot the training set MSE associated with the best model of each size.
+
+```{r}
+library(leaps)
+
+# Best subset selection
+best_subset <- regsubsets(Y ~ ., data = train_data, nvmax = p)
+best_subset
+```
+
+```{r}
+# training MSE for models of each size
+train_rss <- summary(best_subset)$rss  
+train_mse <- train_rss / nrow(train_data)
+```
+
+```{r}
+# Plot training MSE
+plot(1:p, train_mse, type = "b", xlab = "Number of Variables", ylab = "Training MSE",main = "Training MSE by Model Size")
+optimal_train_size <- which.min(train_mse)
+points(optimal_train_size, train_mse[optimal_train_size], col = "red", pch = 19, cex = 2)
+```
+
+[**Remark**]{.underline}
+
+As expected, the training MSE decreases as the number of predictors increases.
+
+## (d)
+
+Plot the test set MSE associated with the best model of each size.
+
+```{r}
+test_mse <- rep(NA, p)  
+
+# Loop through models of different sizes
+for (i in 1:p) {
+  coef_i <- coef(best_subset, id = i)
+  pred <- as.matrix(test_data[, names(coef_i)[-1]]) %*% coef_i[-1] + coef_i[1]
+  test_mse[i] <- mean((test_data$Y - pred)^2)
+}
+```
+
+```{r}
+# Plot test MSE
+plot(1:p, test_mse, type = "b", xlab = "Number of Variables", ylab = "Test MSE",
+     main = "Test MSE by Model Size")
+optimal_size <- which.min(test_mse)
+points(optimal_size, test_mse[optimal_size], col = "red", pch = 19, cex = 2)
+```
+
+## (e)
+
+For which model size does the test set MSE take on its minimum value? Comment on your results. If it takes on its minimum value for a model containing only an intercept or a model containing all of the features, then play around with the way that you are generating the data in (a) until you come up with a scenario in which the test set MSE is minimized for an intermediate model size.
+
+```{r}
+optimal_size <- which.min(test_mse)
+cat("Optimal model size:", optimal_size, "\n")
+cat("Minimum Test MSE:", test_mse[optimal_size], "\n")
+```
+
+[**Comment**]{.underline}
+
+The test set MSE is minimized for a model containing **3 predictors**, agreeing with the structure of the true beta, where only the first three coefficients are nonzero.
+
+### Tweaking generated data to achieve minimum test set MSE for an intermediate model size
+
+```{r}
+set.seed(999)  
+n <- 1000 # num of observations
+p <- 20 # num of predictors
+
+X <- matrix(rnorm(n * p), n, p)
+beta_new <- c(100, 200, 300, 400,500, 600,700,800,900,1000,rep(0, p - 10))
+eps <- rnorm(n)
+Y <- X %*% beta_new + eps
+data <- data.frame(Y = Y, X = as.data.frame(X))
+
+train_indices <- sample(1:n, 100)
+train_data <- data[train_indices, ]
+test_data <- data[-train_indices, ]
+
+best_subset_new <- regsubsets(Y ~ ., data = train_data, nvmax = p)
+
+train_rss <- summary(best_subset_new)$rss  
+train_mse <- train_rss / nrow(train_data)
+
+test_mse <- rep(NA, p)
+
+# Loop through models of different sizes
+for (i in 1:p) {
+  coef_i <- coef(best_subset_new, id = i)
+  pred <- as.matrix(test_data[, names(coef_i)[-1]]) %*% coef_i[-1] + coef_i[1]
+  test_mse[i] <- mean((test_data$Y - pred)^2)
+}
+
+optimal_size <- which.min(test_mse)
+cat("Optimal model size:", optimal_size, "\n")
+cat("Minimum Test MSE:", test_mse[optimal_size], "\n")
+```
+
+## (f)
+
+How does the model at which the test set MSE is minimized compare to the true model used to generate the data? Comment on the coefficient values.
+
+```{r}
+# Extract coefficients for the optimal model
+optimal_model <- coef(best_subset, id = optimal_size)
+optimal_model
+```
+
+```{r}
+# Display the true coefficients
+cat("True coefficients:", beta, "\n")
+```
+
+[**Comment**]{.underline}
+
+As shown above, the optimal model closely approximates the true coefficients for the significant predictors but still wrongly captures unspecified variables due to noise.
+
+## (g)
+
+Create a plot displaying
+
+$$
+   \sqrt{\sum_{j=1}^{p} (\beta_j - \hat{\beta}_j)^2}
+$$
+
+for a range of values of $r$, where $\hat{\beta}_j^r$ is the $j$-th coefficient estimate for the best model containing $r$ coefficients. Comment on what you observe. How does this compare to the test MSE plot from (d)?
+
+```{r}
+colnames(X) <- paste0("X", 1:p) 
+
+rsse <- numeric(p)
+
+for (i in 1:p) {
+  coef_i <- coef(best_subset, id = i) # coef from the best subset model of size i
+  
+  # Clean Predictor Names to Match colnames(X)
+  predictor_names <- gsub("X\\.V", "X", names(coef_i)[-1])  
+  predictor_indices <- match(predictor_names, colnames(X))  
+
+  estimated_beta <- numeric(p)  
+  estimated_beta[predictor_indices] <- coef_i[-1] 
+  
+  # rsse
+  rsse[i] <- sqrt(sum((beta - estimated_beta)^2))  
+}
+```
+
+```{r}
+# Plot RSSE by Model Size
+plot(1:p, rsse, type = "b", xlab = "Number of Variables",
+     ylab = "Coefficient Error (RSSE)", main = "Coefficient Error by Model Size")
+optimal_rsse_size <- which.min(rsse)  # Model size with minimum RSSE
+points(optimal_rsse_size, rsse[optimal_rsse_size], col = "blue", pch = 19, cex = 2)
+```
+
+[**Comment**]{.underline}
+
+Judging from the test MSE in section (d) and the RSSE in section (g), the model size of **3 predictors** achieves the lowest errors for both metrics. Another observation is the steeper decline in RSSE as model complexity increases; this is understandable – RSSE focuses solely on how well the estimated coefficients approximate the true coefficients.

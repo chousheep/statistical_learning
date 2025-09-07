@@ -1,0 +1,334 @@
+---
+title: "Homework 2"
+author: "Statistical Learning"
+date: "2024.10.21"
+output:
+  word_document: default
+  pdf_document:
+    fig_width: 5
+    fig_height: 3.5
+    fig_caption: true
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Consider the linear regression model:
+
+$$ y_i = \beta_1x_{i1} + \cdots + \beta_px_{ip}  + \epsilon_i, ~~i=1,\dots,n. $$
+where $\epsilon_i$ are i.i.d. generated from $N(0, \sigma^2)$ .
+
+# Problem 1
+
+Generate the design matrix with equi-correlation $0.5$ and the response
+based on the above linear model. (Given
+$n=100, \sigma=5, \boldsymbol{\beta}=(2,-2,0.5,1,-3)$ with seed=$36$. )
+
+```{r}
+set.seed(36)
+n <- 100; sigma <- 5; beta0 <- c(2,-2,0.5,1,-3)
+cormat <- diag(1,nrow=5,ncol=5); cormat[cormat==0] <- 0.5
+cholmat <- chol(cormat)
+x <- matrix(rnorm(5*n,0,1), ncol=5)%*%cholmat
+err <- rnorm(n, 0, sigma)
+y <- x%*%beta0 + err
+```
+
+# Problem 2
+
+Please answer the following questions:
+
+We define the ridge problem as:
+
+$$\hat{\boldsymbol{\beta}}(\lambda)=\min_{\boldsymbol{\beta}} \frac{1}{2n}\sum_{i=1}^n\Big(y_i-\sum_{j=1}^px_{ij}\beta_j\Big)^2 + \lambda\sum_{j=1}^p\beta_j^2$$
+Suppose that
+$\sigma_j=(\frac{1}{n}\sum_{i=1}^n(x_{ij}-\bar{x}_j)^2)^{\frac{1}{2}}$,
+$z_{ij}=\sigma_j^{-1}(x_{ij}-\bar{x}_j)$ and $\tilde{y}_i=y_i-\bar{y}$
+such that
+
+$$\sum_{i=1}^n\tilde{y}_i=0, \sum_{i=1}^nz_{ij}=0, \sum_{i=1}^nz_{ij}^2=n, \text{ for } j=1,\dots, p.$$
+where $\bar{y}=\frac{1}{n}\sum_{i=1}^ny_i$ and
+$\bar{x}_j=\frac{1}{n}\sum_{i=1}^nx_{ij}$.
+
+## 2a
+
+$(10\%)$ Calculate OLS based on $\{x_i,y_i\}_{i=1}^n$ and
+$\{z_i, \tilde{y}_i\}_{i=1}^n$, denoted by $\hat{\boldsymbol{\beta}}$
+and $\tilde{\boldsymbol{\beta}}$ respectively. Demonstrate how to
+rescale $\tilde{\boldsymbol{\beta}}$ back to the origin scale, that is,
+demonstrate how to get $\hat{\boldsymbol{\beta}}$ based on
+$\{z_i, \tilde{y}_i\}_{i=1}^n$.
+
+```{r}
+# Compute OLS estimates (original, beta_hat)
+beta_hat <- solve(t(x) %*% x) %*% t(x) %*% y
+beta_hat
+```
+
+```{r}
+# Calculate std (dividing by n)
+sigma_j <- sqrt(colSums((x - matrix(rep(colMeans(x), n), nrow=n, byrow=TRUE))^2) / n)
+# Standardize predictors
+z <- scale(x, center=TRUE, scale=sigma_j)
+# Center the response
+tilde_y <- y - mean(y)
+# Compute OLS estimates based on standardized data
+tilde_beta <- solve(t(z) %*% z) %*% t(z) %*% tilde_y
+```
+
+```{r}
+# Rescale tilde_beta back to the original scale
+beta_hat_rescaled <- tilde_beta / sigma_j
+
+# Compare the two estimates
+comparison <- cbind(beta_hat, beta_hat_rescaled)
+colnames(comparison) <- c("beta_hat", "beta_hat_rescaled")
+comparison
+```
+
+### [**Comment**]{.underline}
+
+Because the centering shifts are **not absorbed** (due to the lack of an
+intercept), the relationship between x and y in the original model **is
+not the same** as the relationship between z and y_tilde in the centered
+model. Below is the model where an intercept is added, and as
+**comparison_int** suggests, the difference can be minimized with the
+help of the intercept.
+
+```{r}
+# Add intercept to original data
+X_intercept <- cbind(1, x)
+beta_hat_int <- solve(t(X_intercept) %*% X_intercept) %*% t(X_intercept) %*% y
+
+# Add intercept to standardized data
+Z_intercept <- cbind(1, z)
+tilde_beta_int <- solve(t(Z_intercept) %*% Z_intercept) %*% t(Z_intercept) %*% tilde_y
+
+# Rescale tilde_beta_int
+beta_hat_rescaled_int <- c(tilde_beta_int[1], tilde_beta_int[-1] / sigma_j)
+```
+
+```{r}
+# Compare the two estimates
+comparison_int <- cbind(beta_hat_int, beta_hat_rescaled_int)
+colnames(comparison_int) <- c("beta_hat_int", "beta_hat_rescaled_int")
+comparison_int
+```
+
+## 2b
+
+$(10\%)$ Based on $\{z_i, \tilde{y}_i\}_{i=1}^n$, plot the solution path
+for $\tilde{\boldsymbol{\beta}}(\lambda)$ given the sequence of
+$\boldsymbol{\lambda}$ **WITHOUT** using any package. (NOTE: A solution
+path for estimator $\tilde{\boldsymbol{\beta}}(\lambda)$ means a line
+plot with sequence $\boldsymbol{\lambda}$ in x-axis and
+$\tilde{\boldsymbol{\beta}}(\lambda)$ in y-axis.)
+$$\boldsymbol{\lambda} = (2^{5},2^{4},2^{3},\dots, 2^0,\dots,2^{-9},2^{-10})$$
+
+Report $\hat{\boldsymbol{\beta}}(2)$ on the original scale.
+
+```{r}
+# Sequence of lambda values as powers of 2
+k_values <- 5:-10
+lambda_seq <- 2^k_values
+
+# Initialize a matrix to store beta estimates
+tilde_beta_ridge <- matrix(0, nrow=length(lambda_seq), ncol=5)
+colnames(tilde_beta_ridge) <- paste0("beta", 1:5)
+rownames(tilde_beta_ridge) <- paste0("lambda=2^", k_values)
+
+# Compute ridge estimates for each lambda
+for (i in 1:length(lambda_seq)) {
+  lambda <- lambda_seq[i]
+  tilde_beta_ridge[i, ] <- solve(t(z) %*% z + n * lambda * diag(5)) %*% t(z) %*% tilde_y
+}
+tilde_beta_ridge
+```
+
+```{r}
+# Plot Solution paths
+matplot(k_values, tilde_beta_ridge, type='l', col=1:5,
+        xlab='k (in lambda = 2^k)', ylab='tilde_beta',
+        main='Solution Paths for Ridge Regression')
+legend('topright', legend=paste0('beta', 1:5), col=1:5, lty=1, lwd=2, cex=0.85)
+```
+
+```{r}
+# Find beta_tilde for lambda = 2
+index_lambda_2 <- which(k_values == 1)
+tilde_beta_lambda_2 <- tilde_beta_ridge[index_lambda_2, ]
+
+# Rescale to original scale
+beta_hat_lambda_2 <- tilde_beta_lambda_2 / sigma_j
+beta_hat_lambda_2
+```
+
+## 2c
+
+$(10\%)$ Try to use glmnet to reproduce (2b) based on the same sequence
+of $\boldsymbol{\lambda}$, can you get the same solution? If you can,
+describe your procedure **explicitly** and demonstrate your result. If
+you cannot, why? give at least two reasons. (Hint: try to google "glmnet
+vignette".)
+
+```{r}
+# Load glmnet package
+library(glmnet)
+
+# Fit ridge regression using glmnet with alpha = 0 (ridge regression)
+ridge_glmnet <- glmnet(z, tilde_y, alpha=0, lambda=lambda_seq, intercept=FALSE, standardize=FALSE)
+
+# Extract coefficients (excluding intercept)
+beta_glmnet <- as.matrix(coef(ridge_glmnet))[-1, ]  
+
+# Transpose to match the dimension of tilde_beta_ridge
+beta_glmnet_t <- t(beta_glmnet)
+
+# Assign row and column names for comparison
+colnames(beta_glmnet_t) <- paste0("beta", 1:5)
+rownames(beta_glmnet_t) <- paste0("lambda=2^", k_values)
+```
+
+```{r}
+# Manually computed ridge estimates from (2b)
+beta_manual <- t(tilde_beta_ridge)
+colnames(beta_manual) <- paste0("lambda=2^", k_values)
+rownames(beta_manual) <- paste0("beta", 1:5)
+
+# Compute differences
+diff <- beta_glmnet-beta_manual
+diff
+```
+
+### [**Answer**]{.underline}
+
+No. We can not get the same solution in 2c as in 2b.
+
+**Reason 1 (Scaling of the Penalty Term)**
+
+In our manual implementation in (2b), the ridge regression minimizes the
+objective function:
+
+$$
+\hat{\boldsymbol{\beta}}(\lambda) = \arg\min_{\boldsymbol{\beta}} \left\{ \frac{1}{2n} \sum_{i=1}^n \left( y_i - \sum_{j=1}^p x_{ij} \beta_j \right)^2 + \lambda \sum_{j=1}^p \beta_j^2 \right\}
+$$
+
+However, glmnet uses a different scaling for the penalty term.
+Specifically, glmnet minimizes:
+
+$$
+\hat{\boldsymbol{\beta}}(\lambda) = \arg\min_{\boldsymbol{\beta}} \left\{ \frac{1}{2n} \sum_{i=1}^n \left( y_i - \sum_{j=1}^p x_{ij} \beta_j \right)^2 + \frac{\lambda}{2} \sum_{j=1}^p \beta_j^2 \right\}
+$$
+
+**Reason 2 (Standardization Procedure & Handling of Intercept)**
+
+As mentioned in the original document (Glmnet Vignette) :
+
+`glmnet formula above applies when the x variables are standardized to have unit variance (the default); it is slightly more complicated when they are not. Note that for ‘family=gaussian’, glmnet standardizes y to have unit variance before computing its lambda sequence (and then unstandardizes the resulting coefficients)`**.**
+
+And in 2a we just figured that a regression model built without an
+intercept is vulnerable to centering, which is exactly what glmnet will
+do to y. Also, the module might use n-1 to calculate standard deviation
+as the default method, rather than using n, specified on eeclass.
+
+## 2d
+
+$(20\%)$ Based on the result of (2b), there are 16 points in the
+sequence of $\boldsymbol{\lambda}$ and its corresponding ridge esitmator
+$\hat{\boldsymbol{\beta}}(\lambda)$. Among these 16 ridge estimators,
+which one do you prefer? Describe how to select the optimal one from
+them **step-by-step** based on this simulation setting.
+
+### [**Comment**]{.underline}
+
+**Step 1: Set Up Cross-Validation (5-fold)**
+
+**Step 2: Evaluate Each Lambda Using Cross-Validation**
+
+We'll loop through the 16 lambda values in our sequence, and use **Mean
+Squared Error (MSE)** to evaluate the performance.
+
+**Step 3: Select the Optimal Lambda**
+
+Select the lambda that has the **lowest average MSE** across the
+validation sets.
+
+**Step 4: Finalize the Preferred Ridge Estimator**
+
+Refit the model using the optimal lambda and obtain the final
+coefficients
+
+```{r}
+# STEP 1 & STEP 2: K-fold and Calculate MSEs
+
+# Initialize a matrix to store average MSE for each lambda
+set.seed(36)
+avg_mse <- numeric(length(lambda_seq))
+names(avg_mse) <- paste0("lambda=2^", k_values)
+folds <- sample(rep(1:5, length.out = n))
+
+# Perform 5-fold cross-validation
+for (l in 1:length(lambda_seq)) {
+  lambda <- lambda_seq[l]
+  mse_fold <- numeric(5)
+  
+  for (i in 1:5) {
+    # Split the data into training and validation sets
+    train_indices <- which(folds != i)
+    val_indices <- which(folds == i)
+    
+    z_train <- z[train_indices, ]
+    y_train <- tilde_y[train_indices]
+    z_val <- z[val_indices, ]
+    y_val <- tilde_y[val_indices]
+    
+    # Fit the ridge regression model on training data
+    beta_ridge <- solve(t(z_train) %*% z_train + n * lambda * diag(5)) %*% t(z_train) %*% y_train
+    
+    # Predict on validation data
+    y_pred <- z_val %*% beta_ridge
+    
+    # Calculate Mean Squared Error
+    mse_fold[i] <- mean((y_val - y_pred)^2)
+  }
+  
+  # Average MSE across all folds for current lambda
+  avg_mse[l] <- mean(mse_fold)
+}
+
+# Display the average MSE for each lambda
+avg_mse
+```
+
+```{r}
+# STEP 3: Find the lambda with the minimum average MSE
+optimal_index <- which.min(avg_mse)
+optimal_lambda <- lambda_seq[optimal_index]
+optimal_k_value <- k_values[optimal_index]
+cat("Optimal lambda is 2^", optimal_k_value, "=", optimal_lambda, "\n")
+
+```
+
+```{r}
+# STEP 3: Plot average MSE vs. log2(lambda)
+plot(k_values, avg_mse, type = "b", col = "black",
+     xlab = expression(log[2](lambda)), ylab = "Average MSE",
+     main = "5-Fold Cross-Validation Error for Ridge Regression")
+abline(v = optimal_k_value, col = "cornflowerblue", lty = 2, lwd = 2)
+```
+
+```{r}
+# STEP 4: Compute the final ridge estimator using the optimal lambda
+beta_ridge_opt <- solve(t(z) %*% z + n * optimal_lambda * diag(5)) %*% t(z) %*% tilde_y
+
+# Rescale the coefficients back to the original scale
+beta_hat_opt <- beta_ridge_opt / sigma_j
+
+# Display the final ridge estimator
+print("Preferred Ridge Regression Coefficients (on original scale):")
+beta_hat_opt
+```
